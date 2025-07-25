@@ -5,7 +5,16 @@ Unfazed FastMCP implementation with Request parameter injection.
 import inspect
 import json
 from functools import partial
-from typing import Annotated, Any, Callable, Dict, List, Optional, Type, get_args
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    get_args,
+)
 
 import pydantic_core
 from fastmcp import Context, FastMCP
@@ -17,8 +26,9 @@ from fastmcp.tools.tool import (
     ToolResult,
     _convert_to_content,
 )
-from fastmcp.utilities.types import NotSetT, find_kwarg_by_type
+from fastmcp.utilities.types import NotSet, NotSetT, find_kwarg_by_type
 from mcp.types import (
+    AnyFunction,
     AudioContent,
     EmbeddedResource,
     ImageContent,
@@ -60,7 +70,7 @@ class UnfazedParsedFunction(ParsedFunction):
             # mcp fucntion only support Json type hint
             annotation: type = param.annotation
             if hasattr(annotation, "_name") and annotation._name == "Annotated":
-                metadata: list[Any] = annotation.__metadata__
+                metadata: list[Any] = getattr(annotation, "__metadata__", [])
 
                 model_or_field = metadata[0]
                 if not isinstance(model_or_field, p.Json):
@@ -138,24 +148,26 @@ class UnfazedParsedFunction(ParsedFunction):
         for base in bases:
             config_dict.update(base.model_config)
 
-        model_cls: Optional[BaseModel] = None
+        model_cls: BaseModel | None = None
 
         if bases:
-            base_one: BaseModel = bases[0]
+            base_one: type[BaseModel] = bases[0]
             base_one.model_config = config_dict
 
             model_cls = create_model(
                 model_name,
                 __base__=tuple(bases) or None,
                 **field_difinitions,
-            )
+            )  # type: ignore
 
+        if model_cls is None:
+            raise ValueError("No valid model created")
         return model_cls
 
     @classmethod
     def check_response_valid(cls, fn: Callable[..., Any]) -> bool:
         response_model: type = inspect.signature(fn).return_annotation
-        args: list[type] = get_args(response_model)
+        args: tuple[type, ...] = get_args(response_model)
         if args[0] == JsonResponse:
             return True
         return False
@@ -182,10 +194,10 @@ class UnfazedParsedFunction(ParsedFunction):
                 )
 
             fn_name: str = getattr(fn, "__name__", None) or fn.__class__.__name__
-            fn_doc: str = inspect.getdoc(fn)
+            fn_doc: str | None = inspect.getdoc(fn)
 
             if not inspect.isroutine(fn):
-                fn = fn.__call__
+                fn = getattr(fn, "__call__", fn)
             # if the fn is a staticmethod, we need to work with the underlying function
             if isinstance(fn, staticmethod):
                 fn = fn.__func__
@@ -218,7 +230,7 @@ class UnfazedFunctionTool(FunctionTool):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._has_request_param = False
-        self._request_param_name = None
+        self._request_param_name: str | None = None
 
     @classmethod
     def from_function(
@@ -233,7 +245,7 @@ class UnfazedFunctionTool(FunctionTool):
         output_schema: Any = None,
         serializer: Callable[[Any], str] | None = None,
         enabled: bool | None = None,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    ) -> "UnfazedFunctionTool":
         """Create an UnfazedFunctionTool from a function."""
 
         # check if the function has Request param
@@ -274,7 +286,7 @@ class UnfazedFunctionTool(FunctionTool):
 
         # mark this mcp tool has request param
         tool._has_request_param = request_kwarg is not None
-        tool._request_param_name = request_kwarg
+        tool._request_param_name = request_kwarg or None
 
         return tool
 
@@ -283,7 +295,7 @@ class UnfazedFunctionTool(FunctionTool):
         if not self._has_request_param:
             return arguments
 
-        request_param_name: str = self._request_param_name
+        request_param_name: str | None = self._request_param_name
         if request_param_name and request_param_name not in arguments:
             try:
                 request: HttpRequest = get_http_request()
@@ -308,8 +320,7 @@ class UnfazedFunctionTool(FunctionTool):
                     return result.body
             elif hasattr(result, "content"):
                 return result.content
-        else:
-            return result
+        return result
 
     async def run(self, arguments: dict[str, Any]) -> ToolResult:
         body_params: dict[str, Any] = {}
@@ -322,7 +333,7 @@ class UnfazedFunctionTool(FunctionTool):
             if issubclass(model, BaseModel):
                 body_params[name] = model(**arguments)
 
-        context_kwarg: str = find_kwarg_by_type(self.fn, kwarg_type=Context)
+        context_kwarg: str | None = find_kwarg_by_type(self.fn, kwarg_type=Context)
         if context_kwarg and context_kwarg not in body_params:
             body_params[context_kwarg] = get_context()
 
@@ -375,17 +386,17 @@ class UnfazedFastMCP(FastMCP):
 
     def tool(
         self,
-        name_or_fn: str | Any | None = None,
+        name_or_fn: str | AnyFunction | None = None,
         *,
         name: str | None = None,
         title: str | None = None,
         description: str | None = None,
         tags: set[str] | None = None,
-        output_schema: dict[str, Any] | None | Any = None,
-        annotations: Any = None,
+        output_schema: dict[str, Any] | None | NotSetT = NotSet,
+        annotations: ToolAnnotations | dict[str, Any] | None = None,
         exclude_args: list[str] | None = None,
         enabled: bool | None = None,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    ) -> FunctionTool | Callable[[Callable[..., Any]], FunctionTool]:
         """
         Unfazed tool decorator that supports Request parameter injection.
 
@@ -452,4 +463,4 @@ class UnfazedFastMCP(FastMCP):
             annotations=annotations,
             exclude_args=exclude_args,
             enabled=enabled,
-        )
+        )  # type: ignore

@@ -2,7 +2,7 @@ UNFAZED_SETTINGS = {
     "ROOT_URLCONF": "entry.routes",
     "INSTALLED_APPS": ["event"],
     "MIDDLEWARE": [
-        "unfazed_sentry.middleware.common.SentryMiddleware",
+        "unfazed.middleware.internal.common.CommonMiddleware",
     ],
     "LIFESPAN": ["event.mcp.EventMCPLifespan"],
 }

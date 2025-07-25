@@ -1,12 +1,13 @@
 from contextlib import AbstractAsyncContextManager
 from typing import Any, Mapping
 
-from event.endpoints import ping
 from fastmcp.server.http import StarletteWithLifespan
 from unfazed.core import Unfazed
 from unfazed.lifespan import BaseLifeSpan
 
 from unfazed_mcp.backends import UnfazedFastMCP
+
+from .endpoints import ping
 
 event_mcp = UnfazedFastMCP(
     name="event",

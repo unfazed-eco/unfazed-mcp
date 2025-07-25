@@ -1,8 +1,9 @@
 import typing as t
 
-from event.schema import BaseResponse, PingRequest, PingRequest2
 from unfazed.http import HttpRequest, JsonResponse
 from unfazed.route import params as p
+
+from .schema import BaseResponse, PingRequest, PingRequest2
 
 
 async def ping(

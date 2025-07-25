@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Type,
     get_args,
+    overload,
 )
 
 import pydantic_core
@@ -167,8 +168,12 @@ class UnfazedParsedFunction(ParsedFunction):
     @classmethod
     def check_response_valid(cls, fn: Callable[..., Any]) -> bool:
         response_model: type = inspect.signature(fn).return_annotation
+        # Check if return type is JsonResponse directly
+        if response_model == JsonResponse:
+            return True
+        # Check if return type is Annotated with JsonResponse
         args: tuple[type, ...] = get_args(response_model)
-        if args[0] == JsonResponse:
+        if args and args[0] == JsonResponse:
             return True
         return False
 
@@ -197,7 +202,7 @@ class UnfazedParsedFunction(ParsedFunction):
             fn_doc: str | None = inspect.getdoc(fn)
 
             if not inspect.isroutine(fn):
-                fn = getattr(fn, "__call__", fn)
+                fn = fn.__call__  # type: ignore
             # if the fn is a staticmethod, we need to work with the underlying function
             if isinstance(fn, staticmethod):
                 fn = fn.__func__
@@ -384,6 +389,36 @@ class UnfazedFastMCP(FastMCP):
     into tool functions that have Request type annotations.
     """
 
+    @overload
+    def tool(
+        self,
+        name_or_fn: AnyFunction,
+        *,
+        name: str | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        tags: set[str] | None = None,
+        output_schema: dict[str, Any] | None | NotSetT = NotSet,
+        annotations: ToolAnnotations | dict[str, Any] | None = None,
+        exclude_args: list[str] | None = None,
+        enabled: bool | None = None,
+    ) -> FunctionTool: ...
+
+    @overload
+    def tool(
+        self,
+        name_or_fn: str | None = None,
+        *,
+        name: str | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        tags: set[str] | None = None,
+        output_schema: dict[str, Any] | None | NotSetT = NotSet,
+        annotations: ToolAnnotations | dict[str, Any] | None = None,
+        exclude_args: list[str] | None = None,
+        enabled: bool | None = None,
+    ) -> Callable[[AnyFunction], FunctionTool]: ...
+
     def tool(
         self,
         name_or_fn: str | AnyFunction | None = None,
@@ -396,7 +431,7 @@ class UnfazedFastMCP(FastMCP):
         annotations: ToolAnnotations | dict[str, Any] | None = None,
         exclude_args: list[str] | None = None,
         enabled: bool | None = None,
-    ) -> FunctionTool | Callable[[Callable[..., Any]], FunctionTool]:
+    ) -> Callable[[AnyFunction], FunctionTool] | FunctionTool:
         """
         Unfazed tool decorator that supports Request parameter injection.
 

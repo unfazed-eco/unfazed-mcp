@@ -1,0 +1,27 @@
+name: Test Unfazed MCP
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  tests:
+    name: "Python ${{ matrix.python-version }}"
+    runs-on: ubuntu-latest
+    container: "python:3.12-slim-bullseye"
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: "actions/checkout@v4"
+      - name: "Install dependencies"
+        run: |
+          pip install uv
+          uv sync
+          apt update && apt install make -y
+      - name: "Run format"
+        run: make format
+      - name: "Run Test"
+        run: make test

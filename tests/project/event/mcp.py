@@ -5,7 +5,7 @@ from fastmcp.server.http import StarletteWithLifespan
 from unfazed.core import Unfazed
 from unfazed.lifespan import BaseLifeSpan
 
-from unfazed_mcp.backends import UnfazedFastMCP
+from unfazed_mcp import UnfazedFastMCP
 
 from .endpoints import ping
 

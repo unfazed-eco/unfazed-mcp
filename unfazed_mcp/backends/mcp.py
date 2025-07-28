@@ -106,7 +106,7 @@ class UnfazedParsedFunction(ParsedFunction):
     @classmethod
     def create_param_model(
         cls, fn: Callable[..., Any], body_params: Dict[str, Any]
-    ) -> BaseModel:
+    ) -> Optional[BaseModel]:
         fields: List[str] = []
         bases: List[Type[BaseModel]] = []
         field_difinitions: Dict[str, Annotated[Any, "p.Parms"]] = {}
@@ -161,8 +161,6 @@ class UnfazedParsedFunction(ParsedFunction):
                 **field_difinitions,
             )  # type: ignore
 
-        if model_cls is None:
-            raise ValueError("No valid model created")
         return model_cls
 
     @classmethod
@@ -208,8 +206,12 @@ class UnfazedParsedFunction(ParsedFunction):
                 fn = fn.__func__
 
             body_params: Dict[str, tuple] = cls._convert_args_to_params(fn)
-            model_cls: BaseModel = cls.create_param_model(fn, body_params)
-            input_schema: dict[str, Any] = model_cls.model_json_schema()
+            model_cls: Optional[BaseModel] = cls.create_param_model(fn, body_params)
+            input_schema: dict[str, Any] = {}
+            if model_cls is not None:
+                input_schema = model_cls.model_json_schema()
+            # Allow functions with only HttpRequest parameter (empty input_schema)
+            # This is valid for functions that only need the request context
 
             return cls(
                 fn=fn,
@@ -275,13 +277,20 @@ class UnfazedFunctionTool(FunctionTool):
                     f'Output schemas must have "type" set to "object" due to MCP spec limitations. Received: {output_schema!r}'
                 )
 
+        # Handle functions with only HttpRequest parameter (empty input_schema)
+        # These functions are valid and should be allowed
+        input_schema: dict[str, Any] = parsed_fn.input_schema
+        if not input_schema and request_kwarg:
+            # For functions with only HttpRequest parameter, provide an empty object schema
+            input_schema = {"type": "object", "properties": {}}
+
         # create tool instance
         tool: UnfazedFunctionTool = cls(
             fn=fn,
             name=name or parsed_fn.name,
             title=title,
             description=description or parsed_fn.description,
-            parameters=parsed_fn.input_schema,
+            parameters=input_schema,
             output_schema=output_schema,
             annotations=annotations,
             tags=tags or set(),

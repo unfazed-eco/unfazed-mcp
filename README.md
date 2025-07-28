@@ -1,6 +1,5 @@
 # Unfazed MCP
 
-Unfazed-MCP borned to solve namespace issues in MCP.
 
 ## Installation
 
@@ -49,7 +48,7 @@ class EventMCPLifespan(BaseLifeSpan):
 
 ```
 
-### Mount MCP Appliction at Root Route
+### Mount MCP appliction at root route
 
 ```python
 

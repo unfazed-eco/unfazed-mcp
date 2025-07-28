@@ -1,7 +1,7 @@
 [project]
 name = "unfazed-mcp"
 version = "0.0.1"
-description = "Model Controller Protocol for Unfazed"
+description = "Model Context Protocol for Unfazed"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

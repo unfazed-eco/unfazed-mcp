@@ -14,7 +14,8 @@ pip install unfazed-mcp
 
 ```python
 
-# event.mcp.py
+# event.application.py
+
 from unfazed.core import Unfazed
 from unfazed.lifespan import BaseLifeSpan
 
@@ -45,6 +46,21 @@ class EventMCPLifespan(BaseLifeSpan):
     async def on_shutdown(self) -> None:
         if self.mcp_lifespan_context is not None:
             await self.mcp_lifespan_context.__aexit__(None, None, None)
+
+```
+
+### Mount MCP Appliction at Root Route
+
+```python
+
+# entry.routes.py
+
+from event.mcp import event_app
+from unfazed.route import mount
+
+patterns = [
+    mount("/ping", app=event_app),
+]
 
 ```
 
